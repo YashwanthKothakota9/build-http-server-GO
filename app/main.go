@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
-var _ = net.Listen
-var _ = os.Exit
+func responseWithBody(body string) []byte {
+	return []byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), body))
+}
 
 func main() {
 
@@ -36,12 +36,13 @@ func main() {
 
 	if path == "/" {
 		connection.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	} else if path == "/user-agent" {
+		userAgentHeader := requestLines[2]
+		userAgentValue := strings.Split(userAgentHeader, ": ")[1]
+		connection.Write(responseWithBody(userAgentValue))
 	} else if strings.HasPrefix(path, "/echo") {
 		randomString := path[6:]
-		connection.Write(
-			[]byte(
-				fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(randomString), randomString),
-			))
+		connection.Write(responseWithBody(randomString))
 	} else {
 		connection.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 	}
