@@ -17,6 +17,10 @@ func responseWithBody(body string, file ...bool) []byte {
 	return []byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s", contentType, len(body), body))
 }
 
+func responseWithEncoding() []byte {
+	return []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\n\r\n")
+}
+
 func handleConnection(connection net.Conn, dir_path ...string) {
 	defer connection.Close()
 
@@ -76,6 +80,16 @@ func handleConnection(connection net.Conn, dir_path ...string) {
 		}
 
 	} else if strings.HasPrefix(path, "/echo") {
+		if len(requestLines) > 2 && requestLines[2] != "" {
+			compressionMethod := strings.TrimSpace(strings.Split(requestLines[2], ": ")[1])
+			if compressionMethod != "" {
+				if compressionMethod == "gzip" {
+					connection.Write(responseWithEncoding())
+				} else {
+					connection.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"))
+				}
+			}
+		}
 		randomString := path[6:]
 		connection.Write(responseWithBody(randomString))
 	} else {
