@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -81,9 +82,9 @@ func handleConnection(connection net.Conn, dir_path ...string) {
 
 	} else if strings.HasPrefix(path, "/echo") {
 		if len(requestLines) > 2 && requestLines[2] != "" {
-			compressionMethod := strings.TrimSpace(strings.Split(requestLines[2], ": ")[1])
-			if compressionMethod != "" {
-				if compressionMethod == "gzip" {
+			compressionMethods := strings.Split(strings.Split(requestLines[2], ": ")[1], ", ")
+			if len(compressionMethods) != 0 {
+				if slices.Contains(compressionMethods, "gzip") {
 					connection.Write(responseWithEncoding())
 				} else {
 					connection.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"))
