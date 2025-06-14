@@ -20,15 +20,21 @@ type Request struct {
 	Body    string
 }
 
-func responseWithBody(body string, file ...bool) []byte {
+func responseWithBody(body string, close bool, file ...bool) []byte {
 	contentType := "text/plain"
 	if len(file) > 0 && file[0] {
 		contentType = "application/octet-stream"
 	}
+	if close {
+		return fmt.Appendf(nil, "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s", contentType, len(body), body)
+	}
 	return fmt.Appendf(nil, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s", contentType, len(body), body)
 }
 
-func responseWithEncoding(compressedData []byte) []byte {
+func responseWithEncoding(compressedData []byte, close bool) []byte {
+	if close {
+		return fmt.Appendf(nil, "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", len(compressedData), compressedData)
+	}
 	return fmt.Appendf(nil, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", len(compressedData), compressedData)
 }
 
@@ -81,33 +87,63 @@ func handleRequest(request map[string]any, connection net.Conn, dir_path ...stri
 
 	switch {
 	case path == "/":
-		response = []byte("HTTP/1.1 200 OK\r\n\r\n")
+		if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+			response = []byte("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
+		} else {
+			response = []byte("HTTP/1.1 200 OK\r\n\r\n")
+		}
 	case path == "/user-agent":
 		userAgentValue := requestHeaders["User-Agent"]
-		response = responseWithBody(userAgentValue)
+		if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+			response = responseWithBody(userAgentValue, true)
+		} else {
+			response = responseWithBody(userAgentValue, false)
+		}
+
 	case strings.HasPrefix(path, "/files"):
 		fileName := path[7:]
 		filePath := filepath.Join(dir_path[0], fileName)
 		if requestMethod == "GET" {
 			content, err := os.ReadFile(filePath)
-			if err != nil {
-				log.Printf("Error reading file %s: %v", filePath, err)
-				response = []byte("HTTP/1.1 404 Not Found\r\n\r\n")
+			if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+				if err != nil {
+					log.Printf("Error reading file %s: %v", filePath, err)
+					response = []byte("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
+				} else {
+					response = responseWithBody(string(content), true, true)
+				}
 			} else {
-				response = responseWithBody(string(content), true)
+				if err != nil {
+					log.Printf("Error reading file %s: %v", filePath, err)
+					response = []byte("HTTP/1.1 404 Not Found\r\n\r\n")
+				} else {
+					response = responseWithBody(string(content), false, true)
+				}
 			}
 		} else if requestMethod == "POST" {
 			contentLengthInt, err := strconv.Atoi(requestHeaders["Content-Length"])
 			if err != nil || len(requestBody) != contentLengthInt {
 				log.Printf("Invalid content length for POST request: %v", err)
-				response = []byte("HTTP/1.1 400 Bad Request\r\n\r\n")
+				if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+					response = []byte("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")
+				} else {
+					response = []byte("HTTP/1.1 400 Bad Request\r\n\r\n")
+				}
 			} else {
 				err = os.WriteFile(filePath, []byte(requestBody), 0644)
 				if err != nil {
 					log.Printf("Error writing file %s: %v", filePath, err)
-					response = []byte("HTTP/1.1 500 Internal Server Error\r\n\r\n")
+					if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+						response = []byte("HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n")
+					} else {
+						response = []byte("HTTP/1.1 500 Internal Server Error\r\n\r\n")
+					}
 				} else {
-					response = []byte("HTTP/1.1 201 Created\r\n\r\n")
+					if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+						response = []byte("HTTP/1.1 201 Created\r\nConnection: close\r\n\r\n")
+					} else {
+						response = []byte("HTTP/1.1 201 Created\r\n\r\n")
+					}
 				}
 			}
 		}
@@ -117,12 +153,24 @@ func handleRequest(request map[string]any, connection net.Conn, dir_path ...stri
 			acceptEncoding = strings.TrimSpace(acceptEncoding)
 			if acceptEncoding == "gzip" || strings.Contains(acceptEncoding, "gzip") {
 				compressedData := compressData(randomString)
-				response = responseWithEncoding(compressedData)
+				if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+					response = responseWithEncoding(compressedData, true)
+				} else {
+					response = responseWithEncoding(compressedData, false)
+				}
 			} else {
-				response = responseWithBody(randomString)
+				if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+					response = responseWithBody(randomString, true)
+				} else {
+					response = responseWithBody(randomString, false)
+				}
 			}
 		} else {
-			response = responseWithBody(randomString)
+			if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+				response = responseWithBody(randomString, true)
+			} else {
+				response = responseWithBody(randomString, false)
+			}
 		}
 	default:
 		log.Printf("Path not found: %s", path)
@@ -134,6 +182,12 @@ func handleRequest(request map[string]any, connection net.Conn, dir_path ...stri
 		_, err = connection.Write(response)
 		if err != nil {
 			log.Printf("Error writing response: %v", err)
+		}
+
+		// Close the connection if Connection: close header was present
+		if requestHeaders["Connection"] != "" && requestHeaders["Connection"] == "close" {
+			connection.Close()
+			log.Printf("Connection closed after sending response with Connection: close header")
 		}
 	}
 }
