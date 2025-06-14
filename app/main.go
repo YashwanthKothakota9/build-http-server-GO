@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"net"
 	"os"
@@ -18,8 +20,16 @@ func responseWithBody(body string, file ...bool) []byte {
 	return []byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s", contentType, len(body), body))
 }
 
-func responseWithEncoding() []byte {
-	return []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\n\r\n")
+func responseWithEncoding(compressedData []byte) []byte {
+	return []byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", len(compressedData), compressedData))
+}
+
+func compressData(data string) []byte {
+	compressedData := bytes.NewBuffer(nil)
+	gz := gzip.NewWriter(compressedData)
+	gz.Write([]byte(data))
+	gz.Close()
+	return compressedData.Bytes()
 }
 
 func handleConnection(connection net.Conn, dir_path ...string) {
@@ -81,17 +91,18 @@ func handleConnection(connection net.Conn, dir_path ...string) {
 		}
 
 	} else if strings.HasPrefix(path, "/echo") {
+		randomString := path[6:]
 		if len(requestLines) > 2 && requestLines[2] != "" {
 			compressionMethods := strings.Split(strings.Split(requestLines[2], ": ")[1], ", ")
 			if len(compressionMethods) != 0 {
 				if slices.Contains(compressionMethods, "gzip") {
-					connection.Write(responseWithEncoding())
+					compressedData := compressData(randomString)
+					connection.Write(responseWithEncoding(compressedData))
 				} else {
 					connection.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"))
 				}
 			}
 		}
-		randomString := path[6:]
 		connection.Write(responseWithBody(randomString))
 	} else {
 		connection.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
