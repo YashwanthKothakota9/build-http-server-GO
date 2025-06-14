@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -29,6 +30,7 @@ func handleConnection(connection net.Conn, dir_path ...string) {
 	requestLines := strings.Split(string(buffer), "\r\n")
 	requestLine := requestLines[0]
 	requestParts := strings.Split(requestLine, " ")
+	requestMethod := requestParts[0]
 	path := requestParts[1]
 
 	if path == "/" {
@@ -40,12 +42,39 @@ func handleConnection(connection net.Conn, dir_path ...string) {
 	} else if strings.HasPrefix(path, "/files") {
 		fileName := path[7:]
 		filePath := filepath.Join(dir_path[0], fileName)
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			connection.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-			return
+		if requestMethod == "GET" {
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				connection.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+				return
+			}
+			connection.Write(responseWithBody(string(content), true))
+		} else if requestMethod == "POST" {
+			contentLength := strings.Split(requestLines[2], ": ")[1]
+			contentLengthInt, err := strconv.Atoi(string(contentLength))
+			if err != nil {
+				connection.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+				return
+			}
+
+			// Split the request by double CRLF to separate headers and body
+			parts := strings.SplitN(string(buffer), "\r\n\r\n", 2)
+			if len(parts) != 2 {
+				connection.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+				return
+			}
+
+			// Take exactly contentLengthInt bytes from the body
+			requestBody := parts[1][:contentLengthInt]
+
+			if len(requestBody) != contentLengthInt {
+				connection.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+				return
+			}
+			os.WriteFile(filePath, []byte(requestBody), 0644)
+			connection.Write([]byte("HTTP/1.1 201 Created\r\n\r\n"))
 		}
-		connection.Write(responseWithBody(string(content), true))
+
 	} else if strings.HasPrefix(path, "/echo") {
 		randomString := path[6:]
 		connection.Write(responseWithBody(randomString))
