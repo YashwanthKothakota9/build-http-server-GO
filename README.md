@@ -1,6 +1,6 @@
-[![progress-banner](https://backend.codecrafters.io/progress/http-server/17301d47-5901-4c2f-8115-f576333016d0)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+[![progress-banner](https://backend.codecrafters.io/progress/http-server/35633b1d-9461-4048-b571-2fdacaf174e8)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for Go solutions to the
+This is a starting point for Python solutions to the
 ["Build Your Own HTTP server" Challenge](https://app.codecrafters.io/courses/http-server/overview).
 
 [HTTP](https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol) is the
@@ -11,27 +11,85 @@ Along the way you'll learn about TCP servers,
 [HTTP request syntax](https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html),
 and more.
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+<h1 align="center">HTTP Server from scratch in GO</h1>
 
-# Passing the first stage
+<div align="center">
+    <img src=".github/image.png" alt="Project completion image">
+</div>
 
-The entry point for your HTTP server implementation is in `app/main.go`. Study
-and uncomment the relevant code, and push your changes to pass the first stage:
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
+
+
+
+```
+This implementation of HTTP server from scratch uses TCP primitives instead of using Python's built-in HTTP libraries 
 ```
 
-Time to move on to the next stage!
 
-# Stage 2 & beyond
 
-Note: This section is for stages 2 and beyond.
+### Stage 1: Bind server to a port
+- Create a server using `socket` module
+- bind it to a port `4221`
+- wait for incoming client connections using `accept()`
 
-1. Ensure you have `go (1.24)` installed locally
-1. Run `./your_program.sh` to run your program, which is implemented in
-   `app/main.go`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+### Stage 2: HTTP Response to the connection
+- Server should respond to the accepted connection with `200` http response.
+
+### Stage 3: URL Path parsing from request
+- Server should send response based on the URL path in the HTTP request.
+- HTTP `200` response for `GET \` request
+- HTTP `404` response for anything other than above url path.
+
+### Stage 4: Response with body
+- Server should reponse with body
+- HTTP `200` response for `GET \echo\{str}` request with response body of `{str}`
+
+### Stage 5: Read header 
+- Server should response with body the value of `User-agent` from headers
+- HTTP `200` response for `GET \user-agent` request with response body with `User-agent`s value from headers. 
+
+### Stage 6: Concurrent connections
+- Server should support `concurrent connections`.
+- Used `ThreadPoolExecutor` to support `concurrent connections`.
+- Used `threads` instead of `processes` because http server is a `I/O` heavy one.
+
+### Stage 7: Return a file
+- Read `directory name` from `command line arguments` - `argv`
+- HTTP `200` response for `GET \files\{file_name}` request with response body of file content.
+- `Content-Type` header set to `application/octet-stream`.
+- `Content-Length` header set to the `size of the file, in bytes`.
+
+### Stage 8: Read Request body
+- HTTP `201` response for `POST \files\{file_name}` request with request body contains `data` to write to the file mentioned in the URL path.
+
+### Stage 9: Accept-Encoding header
+- Server should respond based on `Accept-Encoding` header value with a `Content-Encoding` header value in response
+
+
+### Stage 10: Accept-Encoding header with multiple values
+- Server should respond based on multiple values in `Accept-Encoding` header 
+
+### Stage 11: Add gzip compression of request body
+- Server should compress the request body using `gzip` and append those with `headers` in bytes
+- This should be done when `Accept-Encoding` header present with value `gzip`
+
+### Stage 12: Persistent Connection
+- Keep the TCP connection open after the first request
+- Handle any subsequent requests on the same connection
+- Return appropriate responses for both requests
+
+### Stage 13: Add Support for Multiple Persistent Connections
+- Handle multiple concurrent TCP connections
+- Keep each connection open for multiple requests
+- Process requests independently on each connection
+- Return appropriate responses for all requests
+  
+### Stage 14: Close the Connection
+- Server should close the connection if request header contains `Connection:close`
+
+
+
+### Extra features
+- Added logging
+- Every connection has read deadline to remove hanging connections
+- Error Handling
