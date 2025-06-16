@@ -21,9 +21,7 @@ and more.
 
 
 
-```
-This implementation of HTTP server from scratch uses TCP primitives instead of using Python's built-in HTTP libraries 
-```
+
 
 
 
